@@ -1,0 +1,67 @@
+---
+# Secret for Flask App MySQL credentials
+apiVersion: v1
+kind: Secret
+metadata:
+  name: flask-app-secret
+type: Opaque
+data:
+  # Base64 encoded values
+  # To encode: echo -n 'your-value' | base64
+  mysql-password: YWRtaW4=      # admin
+  mysql-user: cm9vdA==          # root
+
+---
+# Deployment for Flask App
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: two-tier-app
+  labels:
+    app: two-tier-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: two-tier-app
+  template:
+    metadata:
+      labels:
+        app: two-tier-app
+    spec:
+      containers:
+        - name: two-tier-app
+          image: daliabess51/flaskapp:v2
+          env:
+            - name: MYSQL_HOST
+              value: mysql-0.mysql.default.svc.cluster.local          # this is your mysql's service cluster IP, Make sure to change it with yours
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: flask-app-secret
+                  key: mysql-password
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: flask-app-secret
+                  key: mysql-user
+            - name: MYSQL_DB
+              value: "mydb"
+          ports:
+            - containerPort: 5000
+          imagePullPolicy: Always
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: two-tier-app-service
+spec:
+  selector:
+    app: two-tier-app
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 5000
+      nodePort: 30004
+  type: NodePort
